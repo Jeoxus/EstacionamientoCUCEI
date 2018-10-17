@@ -10,6 +10,14 @@ import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
 import android.widget.TextView
 import android.widget.ToggleButton
+import com.example.sjjos.estacionamientocucei.data.Spot
+import com.github.kittinunf.fuel.core.Response
+import com.github.kittinunf.result.Result
+import com.github.kittinunf.fuel.core.FuelError
+import com.github.kittinunf.fuel.core.FuelManager
+import com.github.kittinunf.fuel.gson.responseObject
+import com.github.kittinunf.fuel.httpGet
+import com.github.kittinunf.fuel.httpPost
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -23,7 +31,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var parkingMarker: Marker
     companion object {
         private val REQUEST_ACCESS_FINE_LOCATION = 0
     }
@@ -32,6 +39,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var userIcon : BitmapDescriptor
     private lateinit var otherUserIcon : BitmapDescriptor
     private lateinit var obstacleIcon : BitmapDescriptor
+
+    private lateinit var spots: ArrayList<Spot>
+    private var markers: ArrayList<Marker> = ArrayList()
+    private var parkingMarker: Marker? = null
 
     private var obstacleMode : Boolean = false
 
@@ -64,6 +75,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
+        FuelManager.instance.basePath = "https://us-central1-estacionamiento-cucei-216705.cloudfunctions.net"
+
         val remainingTimeTextView: TextView = findViewById(R.id.remainingTimeTextView)
         remainingTimeTextView.text = sequenceOf(1 to 3, 2 to 6, 3 to 9).simpleRegression().predict(4.0).toString()
     }
@@ -83,6 +96,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     @SuppressLint("MissingPermission")
     private fun setUpMap() {
         if (mayRequestLocation()) {
+
             setUpParkingArea()
             populateMap()
             moveToParking()
@@ -131,14 +145,39 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun populateMap() {
-        parkingArea.forEach {position: LatLng ->
-            val markerOptions = MarkerOptions()
-                    .position(position)
-                    .icon(otherUserIcon)
-                    .title("Usuario")
-                    .snippet("Mantén presionado para reportar")
-            mMap.addMarker(markerOptions)
+        "/getMarkers".httpGet().responseObject { _, response: Response, result: Result<ArrayList<Spot>, FuelError> ->
+            when (response.statusCode){
+                200 -> {
+                    clearMap()
+                    spots = result.get()
+                    spots.forEach {spot: Spot ->
+                        val position = LatLng(spot.lat, spot.lng)
+                        var icon: BitmapDescriptor
+                        if (spot.type == "user") {
+                            icon = otherUserIcon
+                        } else {
+                            icon = obstacleIcon
+                        }
+
+                        if (position != parkingMarker?.position) {
+                            val markerOptions = MarkerOptions()
+                                    .position(position)
+                                    .icon(icon)
+                                    .title(spot.type)
+                                    .snippet("Mantén presionado para reportar")
+                            markers.add(mMap.addMarker(markerOptions))
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private fun clearMap() {
+        markers.forEach {marker: Marker ->
+            marker.remove()
+        }
+        markers.clear()
     }
 
     private fun moveToParking() {
@@ -162,20 +201,51 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     @SuppressLint("MissingPermission")
     private fun parkHere() {
+        val nip = 209615459
         if (mayRequestLocation()) {
             fusedLocationClient.lastLocation
                     .addOnSuccessListener { location: Location? ->
-                        val coordinates = LatLng(location?.latitude!!,location.longitude)
-                        val markerOptions = MarkerOptions()
-                            .position(coordinates)
-                            .icon(userIcon)
-                        parkingMarker = mMap.addMarker(markerOptions)
+                        if (location != null) {
+                            val body = """
+                                {
+                                    "lat": ${location.latitude},
+                                    "lng": ${location.longitude},
+                                    "nip": $nip
+                                }
+                            """.trimIndent()
+                            "/newParkingMarker".httpPost().body(body).response { _, response: Response, _ ->
+                                when (response.statusCode){
+                                    200 -> {
+                                        val coordinates = LatLng(location.latitude, location.longitude)
+                                        val markerOptions = MarkerOptions()
+                                                .position(coordinates)
+                                                .icon(userIcon)
+                                        parkingMarker = mMap.addMarker(markerOptions)
+                                    }
+                                }
+                            }
+                        }
                     }
         }
     }
 
     private fun unpark() {
-        parkingMarker.remove()
+        val nip = 209615459
+        val position = parkingMarker?.position
+        val body = """
+            {
+                "lat": ${position?.latitude},
+                "lng": ${position?.longitude},
+                "nip": $nip
+            }
+        """.trimIndent()
+        "/unpark".httpPost().body(body).response { _, response: Response, _ ->
+            when (response.statusCode) {
+                200 -> {
+                    parkingMarker?.remove()
+                }
+            }
+        }
     }
 
     private fun enterObstacleMode() {
