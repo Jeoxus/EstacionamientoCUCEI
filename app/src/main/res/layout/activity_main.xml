@@ -50,14 +50,12 @@
             android:id="@+id/waitingButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/esperar"
-            android:visibility="invisible" />
+            android:text="@string/esperar" />
 
         <TextView
             android:id="@+id/remainingTimeTextView"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="visible" />
+            android:layout_height="wrap_content" />
 
     </LinearLayout>
 

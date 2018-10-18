@@ -8,6 +8,9 @@ import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
+import android.util.Log
+import android.view.View
+import android.widget.CompoundButton
 import android.widget.TextView
 import android.widget.ToggleButton
 import com.example.sjjos.estacionamientocucei.data.Spot
@@ -15,6 +18,7 @@ import com.github.kittinunf.fuel.core.Response
 import com.github.kittinunf.result.Result
 import com.github.kittinunf.fuel.core.FuelError
 import com.github.kittinunf.fuel.core.FuelManager
+import com.github.kittinunf.fuel.core.Request
 import com.github.kittinunf.fuel.gson.responseObject
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.fuel.httpPost
@@ -28,6 +32,8 @@ import com.google.android.gms.maps.model.*
 import org.nield.kotlinstatistics.simpleRegression
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
+
+    private val nip = 209615458
 
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -51,29 +57,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         setContentView(R.layout.activity_main)
 
         setUpIcons()
-
-        val mapFragment = supportFragmentManager
-                .findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        startMap()
 
         val toggle: ToggleButton = findViewById(R.id.parkingButton)
-        toggle.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                parkHere()
-            } else {
-                unpark()
-            }
-        }
-
+        toggle.setOnCheckedChangeListener{_, isChecked: Boolean -> handleParkingToggle(isChecked)}
         val obstacleButton: ToggleButton = findViewById(R.id.obstacleButton)
-        obstacleButton.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                enterObstacleMode()
-            } else {
-                exitObstacleMode()
-            }
-        }
+        obstacleButton.setOnCheckedChangeListener { _, isChecked -> handleObstacleToggle(isChecked)}
 
         FuelManager.instance.basePath = "https://us-central1-estacionamiento-cucei-216705.cloudfunctions.net"
 
@@ -85,6 +74,13 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
 
         setUpMap()
+    }
+
+    private fun startMap() {
+        val mapFragment = supportFragmentManager
+                .findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     }
 
     private fun setUpIcons() {
@@ -105,21 +101,56 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
             mMap.setOnMapClickListener{ position: LatLng ->
                 if (obstacleMode) {
-                    val markerOptions = MarkerOptions()
-                            .position(position)
-                            .icon(obstacleIcon)
-                            .title("Obstáculo")
-                            .snippet("Mantén presionado para reportar")
-                    mMap.addMarker(markerOptions)
+                    val body = """
+                        {
+                            "lat": ${position.latitude},
+                            "lng": ${position.longitude},
+                            "nip": $nip
+                        }
+                    """.trimIndent()
+                    "/newObstacleMarker".httpPost()
+                        .header(mapOf("Content-Type" to "application/json"))
+                        .body(body)
+                        .response{ request: Request, response: Response, _ ->
+                            Log.d("HTTP_REQ", request.toString())
+                            when (response.statusCode){
+                                200 -> {
+                                    val markerOptions = MarkerOptions()
+                                            .position(position)
+                                            .icon(obstacleIcon)
+                                            .title("obstacle")
+                                            .snippet("Mantén presionado para reportar")
+                                    markers.add(mMap.addMarker(markerOptions))
 
-                    val obstacleButton: ToggleButton = findViewById(R.id.obstacleButton)
-                    obstacleButton.isChecked = false
+                                    val obstacleButton: ToggleButton = findViewById(R.id.obstacleButton)
+                                    obstacleButton.isChecked = false
+                                }
+                            }
+                        }
                 }
             }
 
             mMap.setOnInfoWindowLongClickListener { marker: Marker? ->
-                if (marker?.title == "Obstáculo" || marker?.title == "Usuario") {
-                    marker.remove()
+                if (marker?.title == "obstacle" || marker?.title == "user") {
+                    val body = """
+                        {
+                            "lat": ${marker.position.latitude},
+                            "lng": ${marker.position.longitude},
+                            "nip": $nip,
+                            "type": "${marker.title}"
+                        }
+                    """.trimIndent()
+                    "/reportMarker".httpPost()
+                        .header(mapOf("Content-Type" to "application/json"))
+                        .body(body)
+                        .response{ request: Request, response: Response, _ ->
+                            Log.d("HTTP_REQ", request.toString())
+                            when (response.statusCode){
+                                200 -> {
+                                    populateMap()
+                                }
+                            }
+                        }
                 }
             }
         }
@@ -144,6 +175,22 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap.addPolygon(parkingOptions)
     }
 
+    private fun handleParkingToggle(isChecked: Boolean) {
+        if (isChecked) {
+            parkHere()
+        } else {
+            unpark()
+        }
+    }
+
+    private fun handleObstacleToggle(isChecked: Boolean) {
+        if (isChecked) {
+            enterObstacleMode()
+        } else {
+            exitObstacleMode()
+        }
+    }
+
     private fun populateMap() {
         "/getMarkers".httpGet().responseObject { _, response: Response, result: Result<ArrayList<Spot>, FuelError> ->
             when (response.statusCode){
@@ -152,11 +199,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     spots = result.get()
                     spots.forEach {spot: Spot ->
                         val position = LatLng(spot.lat, spot.lng)
-                        var icon: BitmapDescriptor
-                        if (spot.type == "user") {
-                            icon = otherUserIcon
+                        val icon: BitmapDescriptor = if (spot.type == "user") {
+                            otherUserIcon
                         } else {
-                            icon = obstacleIcon
+                            obstacleIcon
                         }
 
                         if (position != parkingMarker?.position) {
@@ -182,7 +228,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun moveToParking() {
         val coordinates = LatLng(20.655181, -103.324981)
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(coordinates, 20f))
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(coordinates, 18f))
     }
 
     private fun mayRequestLocation() : Boolean {
@@ -213,7 +259,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                                     "nip": $nip
                                 }
                             """.trimIndent()
-                            "/newParkingMarker".httpPost().body(body).response { _, response: Response, _ ->
+                            "/newParkingMarker".httpPost()
+                                    .header(mapOf("Content-Type" to "application/json"))
+                                    .body(body)
+                                    .response{ request: Request, response: Response, _ ->
+                                Log.d("HTTP_REQ", request.toString())
                                 when (response.statusCode){
                                     200 -> {
                                         val coordinates = LatLng(location.latitude, location.longitude)
@@ -239,7 +289,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 "nip": $nip
             }
         """.trimIndent()
-        "/unpark".httpPost().body(body).response { _, response: Response, _ ->
+        "/unpark".httpPost()
+                .header(mapOf("Content-Type" to "application/json"))
+                .body(body)
+                .response { _, response: Response, _ ->
             when (response.statusCode) {
                 200 -> {
                     parkingMarker?.remove()
