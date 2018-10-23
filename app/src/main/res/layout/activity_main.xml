@@ -40,18 +40,12 @@
             android:textOff="@string/obst_culo"
             android:textOn="@string/cancelar" />
 
-        <TextView
-            android:id="@+id/availablePlacesTextView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="invisible" />
-
         <Button
             android:id="@+id/waitingButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/esperar"
-            android:onClick="handleWaitButton" />
+            android:onClick="handleWaitButton"
+            android:text="@string/esperar" />
 
         <TextView
             android:id="@+id/remainingTimeTextView"
@@ -59,6 +53,14 @@
             android:layout_height="wrap_content"
             android:text="@string/esperar"
             android:textColor="@color/colorPrimaryDark" />
+
+        <Button
+            android:id="@+id/button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:onClick="handleShowParkingButton"
+            android:text="@string/demasiada_espera"
+            android:textAlignment="center" />
 
     </LinearLayout>
 

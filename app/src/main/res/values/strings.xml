@@ -19,5 +19,6 @@
     <string name="salir">Salir</string>
     <string name="obst_culo">Obstáculo</string>
     <string name="cancelar">Cancelar</string>
-    <string name="esperar">Esperar</string>
+    <string name="esperar">tiempo de espera…</string>
+    <string name="demasiada_espera">¿Prisa?</string>
 </resources>

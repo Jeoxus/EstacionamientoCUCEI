@@ -32,6 +32,7 @@ import org.nield.kotlinstatistics.simpleRegression
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private val nip = 209615458
+    private val secondParkingPosition = LatLng(20.655177, -103.321406)
 
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -91,6 +92,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             setUpParkingArea()
             populateMap()
             moveToParking()
+
+            val secondParkingMarker = MarkerOptions()
+                    .title("¡Segundo estacionamiento! :)")
+                    .position(secondParkingPosition)
+            mMap.addMarker(secondParkingMarker)
 
             mMap.isMyLocationEnabled = true
 
@@ -212,6 +218,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    fun handleShowParkingButton(view: View) {
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(secondParkingPosition, 18f))
     }
 
     private fun populateMap() {
