@@ -10,15 +10,13 @@ import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import android.view.View
-import android.widget.CompoundButton
 import android.widget.TextView
 import android.widget.ToggleButton
 import com.example.sjjos.estacionamientocucei.data.Spot
-import com.github.kittinunf.fuel.core.Response
+import com.github.kittinunf.fuel.android.core.Json
+import com.github.kittinunf.fuel.android.extension.responseJson
+import com.github.kittinunf.fuel.core.*
 import com.github.kittinunf.result.Result
-import com.github.kittinunf.fuel.core.FuelError
-import com.github.kittinunf.fuel.core.FuelManager
-import com.github.kittinunf.fuel.core.Request
 import com.github.kittinunf.fuel.gson.responseObject
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.fuel.httpPost
@@ -65,9 +63,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         obstacleButton.setOnCheckedChangeListener { _, isChecked -> handleObstacleToggle(isChecked)}
 
         FuelManager.instance.basePath = "https://us-central1-estacionamiento-cucei-216705.cloudfunctions.net"
-
-        val remainingTimeTextView: TextView = findViewById(R.id.remainingTimeTextView)
-        remainingTimeTextView.text = sequenceOf(1 to 3, 2 to 6, 3 to 9).simpleRegression().predict(4.0).toString()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -188,6 +183,34 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             enterObstacleMode()
         } else {
             exitObstacleMode()
+        }
+    }
+
+    fun handleWaitButton(view: View) {
+        "getRecentDepartures".httpGet().responseJson { _, response: Response, result: Result<Json, FuelError> ->
+            when (response.statusCode){
+                200 -> {
+                    val departures = result.get().array()
+
+                    val wait = if (departures.length() < 2) {
+                        "no se pudo calcular la espera"
+                    } else {
+                        val times = ArrayList<Pair<Number, Number>>()
+
+                        for (i in 0 until (departures.length() - 1)){
+                            times.add(Pair(i, (departures[i+1] as Long) - (departures[i] as Long)))
+                        }
+
+                        val timesAsSequence = Sequence { times.iterator() }
+                        val prediction = timesAsSequence.simpleRegression().predict(times.size*1.0)
+                        Log.d("PREDICTION", prediction.toString())
+                        "Pronóstico de espera: ${prediction/1000/60} minutos"
+                    }
+
+                    val remainingTimeTextView: TextView = findViewById(R.id.remainingTimeTextView)
+                    remainingTimeTextView.text = wait
+                }
+            }
         }
     }
 
