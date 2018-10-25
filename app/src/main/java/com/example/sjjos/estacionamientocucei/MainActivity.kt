@@ -28,6 +28,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import org.nield.kotlinstatistics.simpleRegression
+import kotlin.math.absoluteValue
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -116,12 +117,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                             Log.d("HTTP_REQ", request.toString())
                             when (response.statusCode){
                                 200 -> {
-                                    val markerOptions = MarkerOptions()
-                                            .position(position)
-                                            .icon(obstacleIcon)
-                                            .title("obstacle")
-                                            .snippet("Mantén presionado para reportar")
-                                    markers.add(mMap.addMarker(markerOptions))
+                                    populateMap()
 
                                     val obstacleButton: ToggleButton = findViewById(R.id.obstacleButton)
                                     obstacleButton.isChecked = false
@@ -210,7 +206,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         val timesAsSequence = Sequence { times.iterator() }
                         val prediction = timesAsSequence.simpleRegression().predict(times.size*1.0)
                         Log.d("PREDICTION", prediction.toString())
-                        "Pronóstico de espera: ${prediction/1000/60} minutos"
+                        "Pronóstico de espera: ${(prediction/1000/60).absoluteValue} minutos"
                     }
 
                     val remainingTimeTextView: TextView = findViewById(R.id.remainingTimeTextView)
@@ -247,6 +243,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                             markers.add(mMap.addMarker(markerOptions))
                         }
                     }
+                    val placesTextView: TextView = findViewById(R.id.places)
+                    val places = if (parkingMarker != null) {
+                        markers.size + 1
+                    } else {
+                        markers.size
+                    }
+                    placesTextView.visibility = View.VISIBLE
+                    placesTextView.text = "${places}/393 lugares"
                 }
             }
         }
@@ -260,7 +264,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun moveToParking() {
-        val coordinates = LatLng(20.655181, -103.324981)
+        val coordinates = LatLng(20.653900, -103.324630)
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(coordinates, 18f))
     }
 
@@ -329,6 +333,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             when (response.statusCode) {
                 200 -> {
                     parkingMarker?.remove()
+                    parkingMarker = null
                 }
             }
         }
