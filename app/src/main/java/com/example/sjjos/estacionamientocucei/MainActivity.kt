@@ -10,6 +10,7 @@ import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import android.view.View
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.ToggleButton
 import com.example.sjjos.estacionamientocucei.data.Spot
@@ -20,6 +21,7 @@ import com.github.kittinunf.result.Result
 import com.github.kittinunf.fuel.gson.responseObject
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.fuel.httpPost
+import com.github.sumimakito.awesomeqr.AwesomeQRCode
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -33,6 +35,7 @@ import kotlin.math.absoluteValue
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private val nip = 209615458
+    private val plate = "NGE-3311"
     private val secondParkingPosition = LatLng(20.655177, -103.321406)
 
     private lateinit var mMap: GoogleMap
@@ -55,6 +58,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val qrView: ImageView = findViewById(R.id.qr)
+        val contents = "codigo:$nip,placas:$plate"
+        qrView.setImageBitmap(AwesomeQRCode.Renderer().contents(contents).size(800).margin(20).render())
 
         setUpIcons()
         startMap()
@@ -218,6 +225,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     fun handleShowParkingButton(view: View) {
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(secondParkingPosition, 18f))
+    }
+
+    fun handleShowQr(view: View) {
+        val qrView: ImageView = findViewById(R.id.qr)
+        qrView.visibility = View.VISIBLE
+    }
+
+    fun handleHideQr(view: View) {
+        val qrView: ImageView = findViewById(R.id.qr)
+        qrView.visibility = View.GONE
     }
 
     private fun populateMap() {

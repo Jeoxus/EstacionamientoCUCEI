@@ -70,6 +70,21 @@
             android:text="@string/demasiada_espera"
             android:textAlignment="center" />
 
+        <Button
+            android:id="@+id/button2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="QR"
+            android:onClick="handleShowQr" />
+
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/qr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        tools:srcCompat="@tools:sample/backgrounds/scenic"
+        android:onClick="handleHideQr"/>
 
 </android.support.design.widget.CoordinatorLayout>
