@@ -196,24 +196,31 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     fun handleWaitButton(view: View) {
-        "getRecentDepartures".httpGet().responseJson { _, response: Response, result: Result<Json, FuelError> ->
+        "getAdvancedDepartures".httpGet().responseJson { _, response: Response, result: Result<Json, FuelError> ->
             when (response.statusCode){
                 200 -> {
                     val departures = result.get().array()
+                    val now = departures.getDouble(0)
+                    Log.d("PREDICTION NOW", departures.getLong(0).toString())
 
-                    val wait = if (departures.length() < 2) {
+                    val wait = if (departures.length() < 3) {
                         "no se pudo calcular la espera"
                     } else {
                         val times = ArrayList<Pair<Number, Number>>()
-
-                        for (i in 0 until (departures.length() - 1)){
-                            times.add(Pair(i, (departures[i+1] as Long) - (departures[i] as Long)))
+                        var i = 1
+                        while(i < departures.length() - 1) {
+                            times.add(Pair(departures.getLong(i), departures.getLong(i+1)))
+                            i += 2
                         }
 
                         val timesAsSequence = Sequence { times.iterator() }
-                        val prediction = timesAsSequence.simpleRegression().predict(times.size*1.0)
+                        val prediction = timesAsSequence.simpleRegression().predict(now)
                         Log.d("PREDICTION", prediction.toString())
-                        "Pronóstico de espera: ${(prediction/1000/60).absoluteValue} minutos"
+                        if (prediction > 0) {
+                            "Pronóstico de espera: ${(prediction/1000/60).absoluteValue} minutos"
+                        } else {
+                            "¡Se desocupará un lugar en cualquier momento!"
+                        }
                     }
 
                     val remainingTimeTextView: TextView = findViewById(R.id.remainingTimeTextView)
